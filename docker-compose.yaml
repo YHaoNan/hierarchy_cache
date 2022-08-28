@@ -1,0 +1,56 @@
+services:
+  db:
+    image: mysql:5.7.25
+    volumes:
+      - ./mysql/conf/:/etc/mysql/conf.d
+      - ./mysql/logs/:/logs
+      - ./mysql/data/:/var/lib/mysql
+      - ./sql/:/docker-entrypoint-initdb.d
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    privileged: true
+    ports:
+      - 3306:3306
+
+  canal:
+    image: canal/canal-server:v1.1.5
+    ports:
+      - 11111:11111
+    environment:
+      - canal.destinations=hcache
+      - canal.instance.master.address=db:3306
+      - canal.instance.dbUsername=canal
+      - canal.instance.dbPassword=canal
+      - canal.instance.connectionCharset=UTF-8
+      - canal.instance.tsdb.enable=true
+      - canal.instance.gtidon=false
+      - canal.instance.filter.regex=hcache\..*
+      - canal.instance.parser.parallelThreadSize=16
+
+
+  nginx_front:
+    image: nginx:1.23.0
+    ports:
+      - 80:80
+    volumes:
+      - ./nginx/nginx-front.conf:/etc/nginx/nginx.conf
+      - ./html/:/usr/share/nginx/html/
+
+  nginx_inst1:
+    image: openresty/openresty:1.21.4.1-bullseye-fat
+    ports: 
+      - 8080:8080
+    volumes:
+      - ./nginx/nginx-openresty-cluster.conf:/usr/local/openresty/nginx/conf/nginx.conf
+      - ./html/:/usr/local/openresty/nginx/html/
+      - ./lua/item.lua:/usr/local/openresty/nginx/lua/item.lua
+      - ./lua/common.lua:/usr/local/openresty/lualib/common.lua
+
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command:
+      /bin/bash -c "redis-server /usr/local/etc/redis/redis.conf"
